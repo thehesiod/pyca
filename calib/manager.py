@@ -31,7 +31,7 @@ class CertificateManager(object):
     FILE_CA_CERT = 'ca.cert.pem'
     FILE_CA_KEY = 'ca.key.pem'
 
-    def __init__(self, basePath = None, logger = None):
+    def __init__(self, basePath=None, logger=None):
         """Create a new CertificateManager
         """
         self.basePath = os.path.expanduser(os.path.abspath(basePath)) or os.getcwd()
@@ -40,8 +40,13 @@ class CertificateManager(object):
         if not os.path.isdir(self.basePath):
             raise ValueError('Base path [%s] not found' % self.basePath)
 
-    def init(self):
+    def init(self, subjectAltNames=None):
         """Init the manager
+
+        subjectAltNames is an optional list of subjectAltNames you'd like to be
+        rendered into the openssl config file template.
+
+
         NOTE:
             This method will remove all files and directories in the base path
         Returns:
@@ -55,24 +60,32 @@ class CertificateManager(object):
                 shutil.rmtree(path)
             else:
                 os.unlink(path)
+
+        # convert SANs to template string
+        # example format: DNS.1        = example.com
+        subjectAltNames = os.linesep.join(['DNS.{} = {}'.format(idx, san) for idx, san in enumerate(subjectAltNames or [], start=1)])
+
         # Prepare dirs and files
         self.logger.info('Prepare dirs and files')
         for name in self.DIRS:
             os.mkdir(os.path.join(self.basePath, name))
-        with open(os.path.join(self.basePath, self.FILE_INDEX), 'wb') as fd:
+
+        with open(os.path.join(self.basePath, self.FILE_INDEX), 'w'):
             pass
-        with open(os.path.join(self.basePath, self.FILE_SERIAL), 'wb') as fd:
-            print >>fd, 1000
+
+        with open(os.path.join(self.basePath, self.FILE_SERIAL), 'w') as fd:
+            fd.write(str(1000) + os.linesep)
+
         # Format the config file
         env = jinja2.Environment(
-                loader = jinja2.FileSystemLoader(os.path.dirname(os.path.abspath(__file__))),
-                trim_blocks = True,
-                lstrip_blocks = True
+                loader=jinja2.FileSystemLoader(os.path.dirname(os.path.abspath(__file__))),
+                trim_blocks=True,
+                lstrip_blocks=True
                 )
         template = env.get_template('openssl.config.template')
-        content = template.render(basePath = self.basePath)
-        with open(os.path.join(self.basePath, self.FILE_CONFIG), 'wb') as fd:
-            print >>fd, content
+        content = template.render(basePath=self.basePath, subjectAltNames=subjectAltNames)
+        with open(os.path.join(self.basePath, self.FILE_CONFIG), 'w') as fd:
+            fd.write(content + os.linesep)
         # Done
 
     def verifyCertificate(self, name):
@@ -91,13 +104,17 @@ class CertificateManager(object):
                 os.path.join(self.basePath, self.FILE_CONFIG), \
                 os.path.join(self.basePath, self.DIR_PRIVATE, self.FILE_CA_KEY), \
                 os.path.join(self.basePath, self.DIR_CERTS, self.FILE_CA_CERT)
+
         if os.path.isfile(keyPath):
             raise ValueError('CA key file exists at [%s]' % keyPath)
+
         if os.path.isfile(certPath):
             raise ValueError('CA certificate file exists at [%s]' % certPath)
+
         # Generate the key
         if subprocess.call([ 'openssl', 'genrsa', '-aes256', '-out', keyPath, str(keyLength) ] if not noPass else [ 'openssl', 'genrsa', '-out', keyPath, str(keyLength) ]) != 0:
             raise ValueError('Failed to create root key')
+
         # Generate the cert
         if subprocess.call([ 'openssl', 'req', '-config', configPath, '-key', keyPath, '-new', '-x509', '-days', '7300', '-sha256', '-extensions', 'v3_ca', '-out', certPath ]) != 0:
             raise ValueError('Failed to create root certifcate')

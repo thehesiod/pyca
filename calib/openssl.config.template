@@ -16,6 +16,7 @@ new_certs_dir     = $dir/newcerts
 database          = $dir/index.txt
 serial            = $dir/serial
 RANDFILE          = $dir/private/.rand
+copy_extensions   = copy
 
 # The root key and root certificate.
 private_key       = $dir/private/ca.key.pem
@@ -88,12 +89,16 @@ localityName_default            =
 organizationalUnitName_default  =
 emailAddress_default            =
 
+[ alternate_names ]
+{{ subjectAltNames }}
+
 [ v3_ca ]
 # Extensions for a typical CA (`man x509v3_config`).
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid:always,issuer
 basicConstraints = critical, CA:true
-keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+keyUsage = critical, digitalSignature, cRLSign, keyCertSign, keyEncipherment
+subjectAltName      = @alternate_names
 
 [ v3_intermediate_ca ]
 # Extensions for a typical intermediate CA (`man x509v3_config`).
@@ -121,6 +126,7 @@ subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid,issuer:always
 keyUsage = critical, digitalSignature, keyEncipherment
 extendedKeyUsage = serverAuth
+subjectAltName      = @alternate_names
 
 [ crl_ext ]
 # Extension for CRLs (`man x509v3_config`).
