@@ -7,5 +7,5 @@ This lib is based on openssl and follows the guide: https://jamielinux.com/docs/
 
 """
 
-from version import __version__
+from .version import __version__
 
